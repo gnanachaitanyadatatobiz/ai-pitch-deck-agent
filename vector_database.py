@@ -40,7 +40,7 @@ class VectorDatabase:
         self.pc = Pinecone(api_key=self.api_key)
         
         # Initialize OpenAI embeddings
-        self.embeddings = OpenAIEmbeddings(
+        self.embedding_function = OpenAIEmbeddings(
             model="text-embedding-3-small",  # More cost-effective option
             openai_api_key=os.getenv("OPENAI_API_KEY")
         )
@@ -55,7 +55,7 @@ class VectorDatabase:
             chunk_size=1500,
             chunk_overlap=200,
             length_function=len,
-            separators=["\n\n", "\n", "--- PAGE \d+ ---", " ", ""]
+            separators=["\n\n", "\n", r"--- PAGE \d+ ---", " ", ""]
         )
     
     def _setup_index(self):
@@ -100,8 +100,8 @@ class VectorDatabase:
         """
         match = re.match(r'([a-zA-Z0-9\-]+)', filename)
         if match:
-            return match.group(1).split('-')[0].capitalize()
-        return "Unknown"
+            return match.group(1).split('-')[0].lower() # Always store as lowercase
+        return "unknown"
 
     def process_extracted_text_files(self, text_folder: str = "extracted_texts") -> List[Document]:
         """
@@ -182,7 +182,7 @@ class VectorDatabase:
                     # Prepare vectors for this batch
                     for j, doc in enumerate(batch):
                         # Generate embedding for the document
-                        embedding = self.embeddings.embed_query(doc.page_content)
+                        embedding = self.embedding_function.embed_query(doc.page_content)
 
                         # Create unique ID from metadata
                         doc_id = doc.metadata.get('chunk_id', f"chunk_{i}_{j}")
@@ -234,7 +234,7 @@ class VectorDatabase:
         """
         try:
             # Generate embedding for the query
-            query_embedding = self.embeddings.embed_query(query)
+            query_embedding = self.embedding_function.embed_query(query)
 
             # Perform similarity search
             search_results = self.index.query(
@@ -267,27 +267,55 @@ class VectorDatabase:
             logger.error(f"Error during similarity search: {e}")
             return []
     
-    def search_by_company(self, company_name: str, k: int = 10) -> List[Document]:
+    def search_by_query(self, query: str, k: int = 5) -> str:
         """
-        Search for documents by company name.
+        Searches for documents by a general query string.
+        """
+        if self.index is None:
+            logger.error("Vector database index is not initialized.")
+            return "Error: Vector database not initialized."
+        try:
+            logger.info(f"Searching for query: {query}")
+            query_embedding = self.embedding_function.embed_query(query)
+            results = self.index.query(
+                vector=query_embedding,
+                top_k=k,
+                include_metadata=True
+            )
+            
+            if not results['matches']:
+                return "No relevant documents found for the query."
 
-        Args:
-            company_name: Name of the company to search for
-            k: Number of documents to return
+            context_str = "\n---\n".join([res['metadata']['text'] for res in results['matches']])
+            return context_str
+        except Exception as e:
+            logger.error(f"Error during search_by_query: {e}")
+            return f"An error occurred during search: {e}"
 
-        Returns:
-            List of Document objects for the company
+    def search_by_company(self, company_name: str, k: int = 5) -> str:
+        """
+        Searches for documents filtered by a specific company name.
+        DEPRECATED: Use search_by_query for more general searches.
         """
         try:
-            # Create filter for company name
-            filter_dict = {"company_name": {"$eq": company_name.capitalize()}}
+            logger.info(f"Searching for company: {company_name}")
+            # This is a simple implementation, assuming a generic query for the company
+            query_text = f"pitch deck for {company_name}"
+            query_embedding = self.embedding_function.embed_query(query_text)
+            results = self.index.query(
+                vector=query_embedding,
+                top_k=k,
+                include_metadata=True
+            )
+            
+            if not results['matches']:
+                return "No relevant documents found for the company."
 
-            # Search with company filter using the company name as query
-            return self.search_similar_documents(company_name, k=k, filter_dict=filter_dict)
-
+            context_str = "\n---\n".join([res['metadata']['text'] for res in results['matches']])
+            return context_str
         except Exception as e:
-            logger.error(f"Error searching for company {company_name}: {e}")
-            return []
+            logger.error(f"Error during search_by_company: {e}")
+            return f"An error occurred during search: {e}"
     
     def get_companies_list(self) -> List[str]:
         """

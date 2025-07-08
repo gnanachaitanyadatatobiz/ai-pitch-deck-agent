@@ -12,7 +12,6 @@ from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 from vector_database import VectorDatabase
-from knowledge_agent import GetCompanyDataTool, CompanyCheckTool
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
@@ -39,17 +38,14 @@ class ContentAgent:
             max_tokens=3000
         )
         
-        # Initialize tools for the agent
-        self.get_company_data_tool = GetCompanyDataTool()
-        
-        # Initialize the agent
+        # This agent no longer needs direct access to knowledge tools
         self.agent = Agent(
             role="Pitch Deck Content Creator & Presentation Designer",
             goal="Create compelling pitch deck content and PowerPoint presentations based on research and knowledge analysis",
             backstory="""You are an expert pitch deck designer and content creator with extensive experience 
             in creating successful startup presentations. You understand what investors look for and how to 
             structure compelling narratives that secure funding.""",
-            tools=[self.get_company_data_tool],
+            tools=[], # Tools removed
             allow_delegation=False,
             verbose=True,
             llm=self.llm
