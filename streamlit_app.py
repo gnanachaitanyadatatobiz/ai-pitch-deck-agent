@@ -2,6 +2,11 @@
 Streamlit Pitch Deck Generator - Full RAG & Agentic Workflow
 """
 
+# Patch for chromadb/sqlite3 issue on Streamlit Cloud
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 import streamlit as st
 import json
 import logging
