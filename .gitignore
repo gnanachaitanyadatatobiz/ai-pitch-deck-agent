@@ -1,0 +1,40 @@
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Data and output directories
+/Data/
+/outputs/
+/extracted_texts/
+*.json
+*.txt
+
+# Ignore specific files
+knowledge_analysis_*.txt
+pitch_content_*.txt
+startup_data.json
+packages.txt
+requirements_full.txt
+runtime.txt
+FINAL_CODEBASE_SUMMARY.md
+IMPROVEMENTS_SUMMARY.md
+pitchdeck_simple.py
+clear_database.py
+check_rag.py

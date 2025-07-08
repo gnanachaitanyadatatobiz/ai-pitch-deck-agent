@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🎯 AI Analysis Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .prose h1 { color: #4f46e5; font-size: 2rem; font-weight: bold; margin-bottom: 1rem; }
+        .prose h2 { color: #6366f1; font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; }
+        .prose h3 { color: #7c3aed; font-size: 1.25rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+        .prose p { margin-bottom: 1rem; line-height: 1.6; }
+        .prose ul { margin-bottom: 1rem; padding-left: 1.5rem; }
+        .prose li { margin-bottom: 0.5rem; }
+        .prose strong { color: #1f2937; font-weight: 600; }
+        .prose code { background-color: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-family: monospace; }
+        .slide-content {
+            background: #f8fafc;
+            border-left: 4px solid #4f46e5;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .slide-title {
+            color: #4f46e5;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-8">
+    <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-lg p-8">
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-4xl font-bold text-indigo-600">🎯 AI Analysis Results</h1>
+                <p class="text-gray-600 mt-2">Complete workflow analysis with RAG technology</p>
+            </div>
+            <a href="/" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition transform hover:scale-105">
+                🔄 New Analysis
+            </a>
+        </div>
+        
+        <div class="mb-6 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm text-blue-700">
+                        <strong>Workflow:</strong> Knowledge Agent analyzed existing data → Research Agent conducted market research → Content Agent generated pitch deck → PowerPoint created
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div id="content" class="prose max-w-none">{{ content|safe }}</div>
+        
+        <div class="mt-8 p-6 bg-gray-50 rounded-lg">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">📁 Output Files Location</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white p-4 rounded border">
+                    <h4 class="font-semibold text-indigo-600">📊 Research Reports</h4>
+                    <p class="text-sm text-gray-600">outputs/research/</p>
+                </div>
+                <div class="bg-white p-4 rounded border">
+                    <h4 class="font-semibold text-indigo-600">🧠 Knowledge Analysis</h4>
+                    <p class="text-sm text-gray-600">outputs/knowledge_analysis/</p>
+                </div>
+                <div class="bg-white p-4 rounded border">
+                    <h4 class="font-semibold text-indigo-600">📝 Generated Content</h4>
+                    <p class="text-sm text-gray-600">outputs/content/</p>
+                </div>
+                <div class="bg-white p-4 rounded border">
+                    <h4 class="font-semibold text-indigo-600">🎨 PowerPoint Files</h4>
+                    <p class="text-sm text-gray-600">outputs/presentations/</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-6 text-center">
+            <p class="text-xs text-gray-500">
+                🤖 Powered by CrewAI Multi-Agent System | 📊 Pinecone Vector Database | 🔍 RAG Technology | ⚡ OpenAI GPT-4
+            </p>
+        </div>
+    </div>
+    
+    <script>
+        // Convert markdown to HTML
+        document.addEventListener('DOMContentLoaded', function() {
+            const contentDiv = document.getElementById('content');
+            if (contentDiv.textContent.trim()) {
+                contentDiv.innerHTML = marked.parse(contentDiv.textContent);
+            }
+        });
+        
+        // Auto-refresh if content shows "in progress"
+        if (document.getElementById('content').textContent.includes('in progress')) {
+            setTimeout(function() {
+                location.reload();
+            }, 10000); // Refresh every 10 seconds
+        }
+    </script>
+</body>
+</html>
