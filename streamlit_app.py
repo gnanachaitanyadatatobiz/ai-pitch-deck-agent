@@ -23,8 +23,8 @@ try:
     CREWAI_AVAILABLE = True
 except ImportError as e:
     st.error(f"CrewAI import error: {e}")
-    st.error("This appears to be a Python version compatibility issue.")
-    st.error("Please ensure Python 3.11 is being used.")
+    st.error("This appears to be a dependency compatibility issue.")
+    st.error("Please check that all required packages are installed.")
     st.info("Contact support if this issue persists.")
     st.stop()
     CREWAI_AVAILABLE = False
