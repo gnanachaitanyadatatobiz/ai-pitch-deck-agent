@@ -44,17 +44,19 @@ if sqlite_success:
     try:
         from crewai import Agent, Task, Crew, Process, LLM
 
-        # Try multiple import paths for SerperDevTool
+        # Try correct import paths for SerperDevTool
         SerperDevTool = None
         try:
+            # Primary import path for CrewAI tools
             from crewai_tools import SerperDevTool
             print("✅ SerperDevTool imported from crewai_tools")
         except ImportError:
             try:
-                from crewai.tools import SerperDevTool
-                print("✅ SerperDevTool imported from crewai.tools")
+                # Alternative import for older versions
+                from langchain_community.tools import SerperDevTool
+                print("✅ SerperDevTool imported from langchain_community.tools")
             except ImportError:
-                print("❌ SerperDevTool not found in any location")
+                print("❌ SerperDevTool not found - will use fallback implementation")
                 SerperDevTool = None
 
         if SerperDevTool is not None:
@@ -82,7 +84,7 @@ if not CREWAI_AVAILABLE:
             from crewai_tools import SerperDevTool
         except ImportError:
             try:
-                from crewai.tools import SerperDevTool
+                from langchain_community.tools import SerperDevTool
             except ImportError:
                 # Use fallback SerperDevTool if import fails
                 SerperDevTool = None
@@ -108,7 +110,7 @@ if not CREWAI_AVAILABLE:
             from crewai_tools import SerperDevTool
         except ImportError:
             try:
-                from crewai.tools import SerperDevTool
+                from langchain_community.tools import SerperDevTool
             except ImportError:
                 # Use fallback SerperDevTool if import fails
                 SerperDevTool = None
