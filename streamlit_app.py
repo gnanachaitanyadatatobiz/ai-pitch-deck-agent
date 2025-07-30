@@ -670,15 +670,6 @@ def display_results():
                 if research_output:
                     st.markdown("#### Web Research Results (SerperDevTool)")
 
-                    # Debug information (can be removed later)
-                    with st.expander("🔍 Debug Info", expanded=False):
-                        st.write(f"Research sources count: {len(research_sources) if research_sources else 0}")
-                        st.write(f"Research output length: {len(research_output) if research_output else 0}")
-                        if research_sources:
-                            st.json(research_sources[:2])  # Show first 2 sources
-                        else:
-                            st.write("No structured sources found, using text extraction...")
-
                     # Show structured sources if available
                     if research_sources:
                         st.markdown("**📚 Sources Found:**")
