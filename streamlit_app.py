@@ -30,7 +30,15 @@ try:
 except (ImportError, RuntimeError) as e:
     CREWAI_AVAILABLE = False
     print(f"❌ CrewAI failed to load: {e}")
-    # Don't stop the app, just disable CrewAI features
+    # Import fallback libraries for simplified functionality
+    try:
+        import requests
+        from openai import OpenAI
+        FALLBACK_AVAILABLE = True
+        print("✅ Fallback libraries available")
+    except ImportError as fallback_e:
+        FALLBACK_AVAILABLE = False
+        print(f"❌ Fallback libraries failed: {fallback_e}")
 
 # Import our custom modules
 try:
@@ -169,6 +177,114 @@ def extract_urls_from_text(text):
             })
 
     return sources
+
+def run_simplified_research(startup_data, research_prompt=None):
+    """Simplified research function that works without CrewAI using direct API calls."""
+    try:
+        # Validate startup_data
+        if not startup_data or not isinstance(startup_data, dict):
+            logger.error("❌ Invalid startup_data provided to research")
+            return "Error: Invalid startup data", [], {"error": "Invalid startup data"}
+
+        # Check for required API keys
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        serper_api_key = os.getenv('SERPER_API_KEY')
+
+        if not openai_api_key:
+            return "Error: OPENAI_API_KEY not configured", [], {"error": "Missing OPENAI_API_KEY"}
+
+        if not serper_api_key:
+            return "Error: SERPER_API_KEY not configured", [], {"error": "Missing SERPER_API_KEY"}
+
+        # Initialize OpenAI client
+        client = OpenAI(api_key=openai_api_key)
+
+        # Perform web search using Serper API
+        startup_name = startup_data.get('startup_name', 'startup')
+        industry_type = startup_data.get('industry_type', 'technology')
+
+        search_queries = [
+            f"{startup_name} competitors market analysis",
+            f"{industry_type} market size trends 2024",
+            f"{industry_type} industry news recent developments"
+        ]
+
+        search_results = []
+        sources = []
+
+        for query in search_queries:
+            try:
+                # Call Serper API directly
+                search_url = "https://google.serper.dev/search"
+                headers = {
+                    'X-API-KEY': serper_api_key,
+                    'Content-Type': 'application/json'
+                }
+                payload = {'q': query, 'num': 5}
+
+                response = requests.post(search_url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    data = response.json()
+
+                    # Extract organic results
+                    if 'organic' in data:
+                        for result in data['organic'][:3]:  # Top 3 results
+                            search_results.append({
+                                'title': result.get('title', ''),
+                                'snippet': result.get('snippet', ''),
+                                'link': result.get('link', ''),
+                                'query': query
+                            })
+                            sources.append({
+                                'title': result.get('title', ''),
+                                'url': result.get('link', '')
+                            })
+
+            except Exception as e:
+                logger.error(f"Search failed for query '{query}': {e}")
+
+        if not search_results:
+            return "Error: No search results found", [], {"error": "No search results"}
+
+        # Generate research report using OpenAI
+        research_content = "\n\n".join([
+            f"**{result['title']}**\n{result['snippet']}\nSource: {result['link']}"
+            for result in search_results
+        ])
+
+        prompt = f"""
+Based on the following web search results, create a comprehensive market research report for {startup_name} in the {industry_type} industry:
+
+{research_content}
+
+Please provide:
+1. Market Analysis with specific data and sources
+2. Competitor Analysis with company names and sources
+3. Industry Trends with recent developments and sources
+4. A complete list of all source URLs used
+
+Format each finding as: "Finding (Source: URL)"
+"""
+
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=2000,
+                temperature=0.7
+            )
+
+            research_output = response.choices[0].message.content
+
+            return research_output, sources, {"search_results": search_results}
+
+        except Exception as e:
+            logger.error(f"OpenAI API call failed: {e}")
+            return f"Error: Failed to generate research report: {e}", sources, {"error": f"OpenAI API failed: {e}"}
+
+    except Exception as e:
+        logger.error(f"Simplified research failed: {e}")
+        return f"Error: Research failed: {e}", [], {"error": f"Research failed: {e}"}
 
 def run_research_agent_simple(startup_data, research_prompt=None):
     """Simplified research agent function that returns both the research output and sources, and the raw result for debugging."""
@@ -562,8 +678,11 @@ def run_enhanced_workflow():
             logger.info(f"🆕 Company {company_name} not found in database. Conducting comprehensive research.")
             research_prompt = None
         
-        with st.spinner("🔍 CONNECTING... Conducting web research with SerperDevTool"):
-            research_output, research_sources, research_raw_result = run_research_agent_simple(startup_data, research_prompt)
+        with st.spinner("🔍 CONNECTING... Conducting web research"):
+            if CREWAI_AVAILABLE:
+                research_output, research_sources, research_raw_result = run_research_agent_simple(startup_data, research_prompt)
+            else:
+                research_output, research_sources, research_raw_result = run_simplified_research(startup_data, research_prompt)
         # Ensure research_raw_result is JSON serializable
         import collections.abc
         def make_json_safe(obj):
@@ -1053,22 +1172,20 @@ def main():
     """Main Streamlit application."""
 
     # Check if required components are available
-    if not CREWAI_AVAILABLE or not CUSTOM_MODULES_AVAILABLE:
+    if not CREWAI_AVAILABLE and not FALLBACK_AVAILABLE:
         st.error("🚨 **Application Initialization Failed**")
-        st.error("This application requires CrewAI and custom modules to function properly.")
-
-        if not CREWAI_AVAILABLE:
-            st.error("❌ **CrewAI not available**: This might be due to SQLite version compatibility on Streamlit Cloud.")
-            st.info("💡 **Possible solutions:**")
-            st.info("- Try deploying on a different platform (Heroku, Railway, etc.)")
-            st.info("- Use a local deployment with Python 3.11 or 3.12")
-            st.info("- Contact support for environment compatibility")
-
-        if not CUSTOM_MODULES_AVAILABLE:
-            st.error("❌ **Custom modules not available**: Required files missing from repository.")
-            st.info("💡 **Required files:** knowledge_agent.py, content_agent.py, output_manager.py, vector_database.py")
-
+        st.error("Neither CrewAI nor fallback libraries are available.")
         st.stop()
+
+    # Show mode indicator
+    if not CREWAI_AVAILABLE:
+        st.warning("⚠️ **Simplified Mode**: Running without CrewAI due to platform limitations")
+        st.info("💡 **Features available**: Direct API research, basic content generation")
+
+    if not CUSTOM_MODULES_AVAILABLE:
+        st.warning("⚠️ **Limited Features**: Some advanced features may not be available")
+
+    # Continue with simplified functionality
 
     # Initialize session state
     if 'processing' not in st.session_state:

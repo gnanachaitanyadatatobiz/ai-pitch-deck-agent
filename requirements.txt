@@ -8,6 +8,7 @@ pdfplumber
 numpy
 pandas
 tqdm
+requests
 langchain-openai
 langchain-core
 langchain-community
