@@ -55,8 +55,9 @@ if sqlite_success:
                 print("✅ SerperDevTool imported from crewai.tools")
             except ImportError:
                 try:
-                    from crewai.tools.serper_dev_tool import SerperDevTool
-                    print("✅ SerperDevTool imported from crewai.tools.serper_dev_tool")
+                    # Try alternative import paths
+                    from crewai.tools.serper_search import SerperDevTool
+                    print("✅ SerperDevTool imported from crewai.tools.serper_search")
                 except ImportError:
                     print("❌ SerperDevTool not found in any location")
                     SerperDevTool = None
@@ -88,7 +89,8 @@ if not CREWAI_AVAILABLE:
             try:
                 from crewai.tools import SerperDevTool
             except ImportError:
-                from crewai.tools.serper_dev_tool import SerperDevTool
+                # Use fallback SerperDevTool if import fails
+                SerperDevTool = None
 
         CREWAI_AVAILABLE = True
         print("✅ CrewAI imported successfully (Attempt 2)")
@@ -113,7 +115,8 @@ if not CREWAI_AVAILABLE:
             try:
                 from crewai.tools import SerperDevTool
             except ImportError:
-                from crewai.tools.serper_dev_tool import SerperDevTool
+                # Use fallback SerperDevTool if import fails
+                SerperDevTool = None
 
         CREWAI_AVAILABLE = True
         print("✅ CrewAI imported successfully (Attempt 3)")
@@ -206,7 +209,7 @@ def configure_llm():
         OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
         if not OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
-        
+
         logger.info("Initializing OpenAI LLM...")
         return LLM(
             model="gpt-4o-mini",
@@ -217,6 +220,14 @@ def configure_llm():
     except Exception as e:
         logger.error(f"Failed to initialize LLM: {str(e)}")
         raise
+
+def get_llm():
+    """Get LLM instance for CrewAI agents."""
+    try:
+        return configure_llm()
+    except Exception as e:
+        logger.error(f"❌ Failed to get LLM: {e}")
+        return None
 
 # Initialize LLM
 try:
