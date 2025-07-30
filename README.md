@@ -5,16 +5,22 @@ An intelligent AI-powered pitch deck generator that creates comprehensive startu
 ## ✨ Features
 
 - **🧠 AI-Powered Content Generation**: Uses OpenAI GPT-4 to create compelling pitch deck content
+- **🔍 Enhanced Web Research**: SerperDevTool integration with clickable source links
 - **📝 Comprehensive Form Interface**: Detailed input form for all startup information
 - **🎨 Professional Output**: Structured pitch deck content ready for presentation
 - **⚡ Fast Processing**: Quick generation with real-time progress updates
 - **🌐 Web Interface**: Clean, intuitive Streamlit interface for easy interaction
 - **📱 Responsive Design**: Works on desktop and mobile devices
+- **🔗 Interactive Sources**: Clickable links to research sources with enhanced formatting
+- **📊 Visual Research Display**: Card-based layout for research results with domain indicators
 
 ## 🛠️ Technology Stack
 
 - **Frontend**: Streamlit
 - **LLM**: OpenAI GPT-4
+- **Web Search**: SerperDevTool for real-time research
+- **Multi-Agent Framework**: CrewAI for coordinated AI workflows
+- **Vector Database**: Pinecone for RAG technology
 - **Document Processing**: PyPDF2, pdfplumber
 - **Presentation**: python-pptx
 - **Backend**: Python 3.11+
@@ -28,6 +34,8 @@ An intelligent AI-powered pitch deck generator that creates comprehensive startu
 Before running this application, you need to obtain:
 
 1. **OpenAI API Key** - For GPT-4 language model
+2. **SerperDev API Key** - For web search functionality
+3. **Pinecone API Key** - For vector database operations (optional)
 
 ## ⚙️ Installation
 
@@ -46,6 +54,9 @@ Before running this application, you need to obtain:
    Create a `.env` file in the root directory:
    ```env
    OPENAI_API_KEY=your_openai_api_key_here
+   SERPER_API_KEY=your_serper_api_key_here
+   PINECONE_API_KEY=your_pinecone_api_key_here
+   PINECONE_ENVIRONMENT=your_pinecone_environment
    ```
 
 4. **Run the application**
@@ -60,9 +71,10 @@ Before running this application, you need to obtain:
 - Performs quick company checks and data validation
 
 ### 2. **Research Agent** 🔬
-- Conducts comprehensive market research
-- Analyzes competitors and market trends
-- Gathers recent industry insights
+- Conducts comprehensive market research using SerperDevTool
+- Analyzes competitors and market trends with real-time web search
+- Gathers recent industry insights with clickable source links
+- Provides visual research results with enhanced formatting
 
 ### 3. **Content Agent** 📝
 - Generates compelling pitch deck content
@@ -104,10 +116,13 @@ Pitchdeck-AI/
 ## 🌟 Key Features
 
 - **Intelligent Form Interface**: User-friendly input form with validation
-- **Real-time Processing**: Live progress updates during generation
-- **Comprehensive Analysis**: Multi-layered AI analysis workflow
+- **Real-time Processing**: Live progress updates with "CONNECTING" indicators
+- **Comprehensive Analysis**: Multi-layered AI analysis workflow with RAG technology
+- **Enhanced Web Research**: SerperDevTool integration with intelligent URL extraction
+- **Interactive Source Display**: Clickable links with card-based visual layout
 - **Professional Output**: High-quality PowerPoint presentations
 - **Organized Results**: Structured file organization and reporting
+- **Smart Link Processing**: Automatic title extraction and domain identification
 
 ## 🚀 Deployment
 
