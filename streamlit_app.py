@@ -10,14 +10,27 @@ import traceback
 from datetime import datetime
 import streamlit as st
 from dotenv import load_dotenv
-from crewai import Agent, Task, Crew, Process, LLM
-from crewai_tools import SerperDevTool
+
+# Handle potential ChromaDB/SQLite issues on Streamlit Cloud
+try:
+    from crewai import Agent, Task, Crew, Process, LLM
+    from crewai_tools import SerperDevTool
+    CREWAI_AVAILABLE = True
+except ImportError as e:
+    st.error(f"CrewAI import failed: {e}")
+    st.error("This might be due to SQLite version compatibility on Streamlit Cloud.")
+    st.stop()
 
 # Import our custom modules
-from knowledge_agent import KnowledgeAgent
-from content_agent import ContentAgent
-from output_manager import OutputManager
-from vector_database import VectorDatabase
+try:
+    from knowledge_agent import KnowledgeAgent
+    from content_agent import ContentAgent
+    from output_manager import OutputManager
+    from vector_database import VectorDatabase
+except ImportError as e:
+    st.error(f"Custom module import failed: {e}")
+    st.error("Please ensure all required files are present in the repository.")
+    st.stop()
 
 # Configure logging
 logging.basicConfig(
