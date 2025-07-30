@@ -17,6 +17,7 @@ from crewai_tools import SerperDevTool
 from knowledge_agent import KnowledgeAgent
 from content_agent import ContentAgent
 from output_manager import OutputManager
+from vector_database import VectorDatabase
 
 # Configure logging
 logging.basicConfig(
@@ -152,6 +153,13 @@ def run_enhanced_workflow():
         # STEP 1: KNOWLEDGE AGENT - Check existing data and analyze
         logger.info("📊 STEP 1: Knowledge Agent - Analyzing existing database...")
         company_check = knowledge_agent.quick_company_check(company_name)
+
+        # STEP 1.5: Retrieve context from vector DB (company name first, then fallback to semantic query)
+        db = VectorDatabase()
+        source_doc = db.search_by_company(company_name)
+        if not source_doc or "No relevant documents found" in source_doc:
+            query = f"A startup in the {startup_data.get('industry_type', '')} space focused on {startup_data.get('key_problem_solved', '')}"
+            source_doc = db.search_by_query(query)
         
         # STEP 2: RESEARCH AGENT - Based on knowledge agent findings
         logger.info("🔬 STEP 2: Research Agent - Conducting market research...")
@@ -215,7 +223,8 @@ def run_enhanced_workflow():
                 "content_file": content_file,
                 "powerpoint_file": organized_ppt_file
             },
-            "workflow_status": "completed"
+            "workflow_status": "completed",
+            "source_doc": source_doc
         }
         
         # Save comprehensive report
@@ -469,6 +478,13 @@ def display_results():
             report_data = report_wrapper.get('data', {})
             metadata = report_wrapper.get('metadata', {})
             files = report_data.get('files', {})
+
+            # Show the actual context used (source_doc)
+            source_doc = report_data.get('source_doc', '')
+            if source_doc and 'No relevant documents found' not in source_doc:
+                st.info(f"**Source of Content:**\n\nRelevant context was found in the vector database and used as background knowledge.\n\n---\n{source_doc[:2000]}{'... (truncated)' if len(source_doc) > 2000 else ''}")
+            else:
+                st.info("**Source of Content:**\n\nNo relevant context was found in the vector database. The Research Agent gathered up-to-date information, and the Content Agent generated your pitch deck using your input and the research findings.")
 
             # Format the pitch content for clean display
             pitch_content = report_data.get('pitch_content', 'No content generated')

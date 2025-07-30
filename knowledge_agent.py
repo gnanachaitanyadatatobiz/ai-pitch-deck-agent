@@ -5,7 +5,7 @@ Implements CrewAI agent that uses RAG technique to compare research output with 
 
 import os
 import logging
-from crewai import Agent, Task
+from crewai import Agent, Task, Crew, Process
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 from vector_database import VectorDatabase
@@ -64,3 +64,30 @@ class KnowledgeAgent:
             """,
             agent=self.agent
         )
+
+    def quick_company_check(self, company_name: str) -> dict:
+        """
+        Checks if a company exists in the vector database and returns chunk count.
+        """
+        db = VectorDatabase()
+        exists = db.check_company_exists(company_name)
+        chunk_count = db.get_company_document_count(company_name)
+        return {"exists": exists, "chunk_count": chunk_count}
+
+    def analyze_startup(self, startup_data: dict, research_output: str = "") -> str:
+        """
+        Runs the knowledge agent's analysis task using the provided startup data.
+        Optionally, can use research_output for context (not used in current prompt).
+        """
+        industry = startup_data.get("industry_type", "")
+        problem = startup_data.get("key_problem_solved", "")
+        query = f"A startup in the {industry} space solving the problem of {problem}"
+        knowledge_crew = Crew(
+            agents=[self.agent],
+            tasks=[self.knowledge_task],
+            process=Process.sequential,
+            verbose=True,
+            full_output=True
+        )
+        result = knowledge_crew.kickoff(inputs={"input": query})
+        return str(result)

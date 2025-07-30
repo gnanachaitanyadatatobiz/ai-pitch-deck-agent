@@ -17,6 +17,7 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from dotenv import load_dotenv
+import re # Added for robust parsing
 
 # Load environment variables
 load_dotenv()
@@ -172,185 +173,159 @@ class ContentAgent:
             
             # Create presentation
             prs = Presentation()
-            
-            # Define slide layouts and styling
-            title_slide_layout = prs.slide_layouts[0]  # Title slide
-            content_slide_layout = prs.slide_layouts[1]  # Title and content
-            
-            # Parse content (simplified parsing - in production, you'd want more robust parsing)
+            self._set_presentation_theme(prs)
+
+            # Define slide layouts
+            title_slide_layout = prs.slide_layouts[0]
+            content_slide_layout = prs.slide_layouts[5] # Using a different layout for variety
+
+            # Parse content
             slides_data = self._parse_pitch_content(pitch_content, startup_data)
+
+            # Create Title Slide
+            self._create_title_slide(prs, title_slide_layout, startup_data)
             
-            # Create slides
+            # Create a 'Table of Contents' slide
+            self._create_toc_slide(prs, content_slide_layout, [s['slide_title'] for s in slides_data if s['slide_number'] > 1])
+
+            # Create other slides
             for slide_data in slides_data:
-                if slide_data['slide_number'] == 1:
-                    # Title slide
-                    slide = prs.slides.add_slide(title_slide_layout)
-                    title = slide.shapes.title
-                    subtitle = slide.placeholders[1]
-                    
-                    title.text = slide_data['slide_title']
-                    subtitle.text = f"Founder: {startup_data.get('founder_name', 'N/A')}\n{datetime.now().strftime('%B %Y')}"
+                if slide_data['slide_number'] == 1: continue # Already created
+
+                slide = prs.slides.add_slide(content_slide_layout)
+                title = slide.shapes.title
+                # Try to find the first placeholder that is not the title
+                content_placeholder = None
+                for ph in slide.placeholders:
+                    if ph.placeholder_format.idx != 0:  # 0 is usually the title
+                        content_placeholder = ph
+                        break
+
+                from pptx.util import Inches
+                if content_placeholder is None:
+                    # Fallback: add a textbox if no suitable placeholder is found
+                    left = Inches(1)
+                    top = Inches(2)
+                    width = Inches(8)
+                    height = Inches(5)
+                    content_placeholder = slide.shapes.add_textbox(left, top, width, height)
+                    tf = content_placeholder.text_frame
                 else:
-                    # Content slide
-                    slide = prs.slides.add_slide(content_slide_layout)
-                    title = slide.shapes.title
-                    content = slide.placeholders[1]
-                    
-                    title.text = slide_data['slide_title']
-                    
-                    # Add bullet points
-                    text_frame = content.text_frame
-                    text_frame.clear()
-                    
-                    for i, bullet in enumerate(slide_data['bullet_points']):
-                        if i == 0:
-                            p = text_frame.paragraphs[0]
-                        else:
-                            p = text_frame.add_paragraph()
-                        
-                        p.text = bullet
-                        p.level = 0
-                        p.font.size = Pt(18)
+                    tf = content_placeholder.text_frame
+                
+                title.text = slide_data['slide_title']
+                
+                # Clear existing text and add new content
+                tf.clear() 
+
+                for point in slide_data['content']:
+                    p = tf.add_paragraph()
+                    p.text = point
+                    p.level = 1
             
             # Save presentation
             prs.save(ppt_filename)
-            logger.info(f"PowerPoint presentation created: {ppt_filename}")
-            
+            logger.info(f"PowerPoint presentation created at: {ppt_filename}")
             return ppt_filename
             
         except Exception as e:
             logger.error(f"Error creating PowerPoint presentation: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            return f"Error creating presentation: {str(e)}"
+            return ""
+
+    def _set_presentation_theme(self, prs: Presentation):
+        """Sets a modern, clean theme for the presentation."""
+        # This is a placeholder for more advanced theming.
+        # For now, we'll stick to simple formatting.
+        prs.slide_width = Inches(16)
+        prs.slide_height = Inches(9)
+
+    def _create_title_slide(self, prs: Presentation, layout, startup_data: Dict[str, Any]):
+        """Creates a well-formatted title slide."""
+        slide = prs.slides.add_slide(layout)
+        title = slide.shapes.title
+        subtitle = slide.placeholders[1] if len(slide.placeholders) > 1 else None
+
+        title.text = startup_data.get('startup_name', 'Pitch Deck')
+        if subtitle:
+            subtitle.text = f"By {startup_data.get('founder_name', 'The Team')}\n{startup_data.get('vision_statement', '')}"
+            if len(subtitle.text_frame.paragraphs) > 0:
+                subtitle.text_frame.paragraphs[0].font.size = Pt(24)
+            if len(subtitle.text_frame.paragraphs) > 1:
+                subtitle.text_frame.paragraphs[1].font.size = Pt(18)
+                subtitle.text_frame.paragraphs[1].font.italic = True
     
+    def _create_toc_slide(self, prs: Presentation, layout, slide_titles: list):
+        """Creates a table of contents slide."""
+        from pptx.util import Inches
+        slide = prs.slides.add_slide(layout)
+        title = slide.shapes.title
+        title.text = "Agenda"
+
+        # Try to find the first placeholder that is not the title
+        content_placeholder = None
+        for ph in slide.placeholders:
+            if ph.placeholder_format.idx != 0:  # 0 is usually the title
+                content_placeholder = ph
+                break
+
+        if content_placeholder is None:
+            # Fallback: add a textbox if no suitable placeholder is found
+            left = Inches(1)
+            top = Inches(2)
+            width = Inches(8)
+            height = Inches(5)
+            content_placeholder = slide.shapes.add_textbox(left, top, width, height)
+            tf = content_placeholder.text_frame
+        else:
+            tf = content_placeholder.text_frame
+
+        tf.clear()
+
+        for slide_title in slide_titles:
+            p = tf.add_paragraph()
+            p.text = slide_title
+            p.level = 1
+
     def _parse_pitch_content(self, pitch_content: str, startup_data: Dict[str, Any]) -> list:
         """
-        Parse the generated pitch content into structured slide data.
-        
-        Args:
-            pitch_content: Raw pitch content from agent
-            startup_data: Original startup data
-            
-        Returns:
-            List of slide data dictionaries
+        Parse the generated pitch deck content into a structured list of slides.
+        This version is more robust to handle variations in the LLM's output format.
         """
-        # This is a simplified parser - in production, you'd want more robust parsing
         slides = []
-        
-        # Default slide structure based on startup data
-        default_slides = [
-            {
-                'slide_number': 1,
-                'slide_title': startup_data.get('startup_name', 'Company Name'),
-                'bullet_points': [
-                    startup_data.get('vision_statement', 'Vision statement'),
-                    f"Founder: {startup_data.get('founder_name', 'N/A')}",
-                    f"Industry: {startup_data.get('industry_type', 'N/A')}"
-                ]
-            },
-            {
-                'slide_number': 2,
-                'slide_title': 'Problem',
-                'bullet_points': [
-                    startup_data.get('key_problem_solved', 'Problem statement'),
-                    'Market pain points',
-                    'Current solutions are inadequate'
-                ]
-            },
-            {
-                'slide_number': 3,
-                'slide_title': 'Solution',
-                'bullet_points': [
-                    startup_data.get('solution_summary', 'Solution overview'),
-                    'Unique value proposition',
-                    'Key benefits'
-                ]
-            },
-            {
-                'slide_number': 4,
-                'slide_title': 'Market Opportunity',
-                'bullet_points': [
-                    f"Market Size: {startup_data.get('market_size', 'TBD')}",
-                    'Target market segments',
-                    'Growth potential'
-                ]
-            },
-            {
-                'slide_number': 5,
-                'slide_title': 'Product',
-                'bullet_points': [
-                    f"Product: {startup_data.get('product_name', 'Product name')}",
-                    'Key features',
-                    'User benefits'
-                ]
-            },
-            {
-                'slide_number': 6,
-                'slide_title': 'Business Model',
-                'bullet_points': [
-                    startup_data.get('business_model', 'Business model'),
-                    startup_data.get('monetization_plan', 'Monetization strategy'),
-                    'Revenue streams'
-                ]
-            },
-            {
-                'slide_number': 7,
-                'slide_title': 'Traction',
-                'bullet_points': [
-                    startup_data.get('transactions', 'Current traction'),
-                    'Key metrics',
-                    'Growth milestones'
-                ]
-            },
-            {
-                'slide_number': 8,
-                'slide_title': 'Competition',
-                'bullet_points': [
-                    f"Competitors: {startup_data.get('competitors', 'TBD')}",
-                    startup_data.get('why_you_win', 'Competitive advantage'),
-                    'Market positioning'
-                ]
-            },
-            {
-                'slide_number': 9,
-                'slide_title': 'Marketing Strategy',
-                'bullet_points': [
-                    startup_data.get('acquisition_strategy', 'Customer acquisition'),
-                    f"Target customers: {startup_data.get('target_customer_profile', 'TBD')}",
-                    'Growth channels'
-                ]
-            },
-            {
-                'slide_number': 10,
-                'slide_title': 'Team',
-                'bullet_points': [
-                    f"Founder: {startup_data.get('founder_name', 'N/A')}",
-                    startup_data.get('founder_bio', 'Founder background'),
-                    startup_data.get('team_summary', 'Team overview')
-                ]
-            },
-            {
-                'slide_number': 11,
-                'slide_title': 'Financial Projections',
-                'bullet_points': [
-                    'Revenue projections',
-                    'Key financial metrics',
-                    'Path to profitability'
-                ]
-            },
-            {
-                'slide_number': 12,
-                'slide_title': 'Funding Ask',
-                'bullet_points': [
-                    f"Raising: {startup_data.get('funding_amount', 'TBD')}",
-                    f"Use of funds: {startup_data.get('use_of_funds_split_percentages', 'TBD')}",
-                    'Expected outcomes'
-                ]
-            }
-        ]
-        
-        return default_slides
+        # Use a more flexible regex that allows for "Slide X" or "SLIDE X:" etc.
+        slide_chunks = re.split(r'(?i)\n---\n*Slide \d+[:\s-]*', pitch_content)
+
+        if len(slide_chunks) <= 1: # If split fails, try another pattern
+             slide_chunks = re.split(r'\n(?=Slide \d+:)', pitch_content)
+
+        slide_counter = 1
+        for i, chunk in enumerate(slide_chunks):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+
+            lines = chunk.split('\n')
+            
+            # Extract title, which is usually the first line
+            slide_title = lines[0].replace('*', '').replace(':', '').strip()
+            
+            # The rest is content
+            content_points = [line.strip() for line in lines[1:] if line.strip() and not line.strip().startswith("---")]
+            
+            # Skip empty slides
+            if not slide_title and not content_points:
+                continue
+                
+            slides.append({
+                "slide_number": slide_counter,
+                "slide_title": slide_title,
+                "content": content_points
+            })
+            slide_counter += 1
+            
+        return slides
 
     def format_clean_pitch_output(self, startup_data: Dict[str, Any], research_output: str = "", knowledge_analysis: str = "") -> str:
         """

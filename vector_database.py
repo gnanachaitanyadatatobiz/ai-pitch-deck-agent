@@ -294,23 +294,22 @@ class VectorDatabase:
 
     def search_by_company(self, company_name: str, k: int = 5) -> str:
         """
-        Searches for documents filtered by a specific company name.
-        DEPRECATED: Use search_by_query for more general searches.
+        Searches for documents filtered by a specific company name using metadata filter.
         """
         try:
             logger.info(f"Searching for company: {company_name}")
-            # This is a simple implementation, assuming a generic query for the company
-            query_text = f"pitch deck for {company_name}"
+            # Use a metadata filter for exact match (assuming company_name is stored in lowercase)
+            filter_dict = {"company_name": company_name.lower()}
+            query_text = "company pitch deck"
             query_embedding = self.embedding_function.embed_query(query_text)
             results = self.index.query(
                 vector=query_embedding,
                 top_k=k,
-                include_metadata=True
+                include_metadata=True,
+                filter=filter_dict
             )
-            
             if not results['matches']:
                 return "No relevant documents found for the company."
-
             context_str = "\n---\n".join([res['metadata']['text'] for res in results['matches']])
             return context_str
         except Exception as e:
@@ -337,17 +336,14 @@ class VectorDatabase:
     def check_company_exists(self, company_name: str) -> bool:
         """
         Check if a company exists in the database.
-        
         Args:
             company_name: Name of the company to check
-            
         Returns:
             True if company exists, False otherwise
         """
         try:
-            results = self.search_by_company(company_name, k=1)
-            return len(results) > 0
-            
+            count = self.get_company_document_count(company_name)
+            return count > 0
         except Exception as e:
             logger.error(f"Error checking if company exists: {e}")
             return False
@@ -355,17 +351,17 @@ class VectorDatabase:
     def get_company_document_count(self, company_name: str) -> int:
         """
         Gets the count of all document chunks for a specific company.
-        
-        Args:
-            company_name: The name of the company to count documents for.
-            
-        Returns:
-            The total number of document chunks found for the company.
         """
         try:
             # We query with a high 'k' to get all chunks for the company.
-            documents = self.search_by_company(company_name, k=1000)
-            return len(documents)
+            result = self.search_by_company(company_name, k=1000)
+            if isinstance(result, str) and ("No relevant documents found" in result or "An error occurred" in result):
+                return 0
+            # If result is a string with content, treat as 1 document (legacy fallback)
+            if isinstance(result, str):
+                return 1 if result.strip() else 0
+            # If result is a list (future-proof)
+            return len(result)
         except Exception as e:
             logger.error(f"Error getting document count for {company_name}: {e}")
             return 0
