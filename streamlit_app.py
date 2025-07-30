@@ -11,26 +11,77 @@ from datetime import datetime
 import streamlit as st
 from dotenv import load_dotenv
 
-# SQLite3 compatibility fix for Streamlit Cloud
-try:
-    import sys
-    import pysqlite3
-    sys.modules["sqlite3"] = pysqlite3
-    print("✅ SQLite3 patched with pysqlite3")
-except ImportError:
-    print("⚠️ pysqlite3 not available, using system sqlite3")
-    pass
+# CRITICAL: SQLite3 compatibility fix for Streamlit Cloud
+# This MUST happen before any other imports that might use sqlite3
+import sys
+import os
 
-# Handle potential ChromaDB/SQLite issues on Streamlit Cloud
+# Setup SQLite3 compatibility
 try:
-    from crewai import Agent, Task, Crew, Process, LLM
-    from crewai_tools import SerperDevTool
-    CREWAI_AVAILABLE = True
-    print("✅ CrewAI imported successfully")
-except (ImportError, RuntimeError) as e:
-    CREWAI_AVAILABLE = False
-    print(f"❌ CrewAI failed to load: {e}")
-    # Import fallback libraries for simplified functionality
+    from setup_sqlite import setup_sqlite
+    sqlite_success = setup_sqlite()
+    print(f"✅ SQLite setup result: {sqlite_success}")
+except ImportError:
+    # Fallback to inline setup
+    try:
+        import pysqlite3
+        sys.modules["sqlite3"] = pysqlite3
+        sys.modules["sqlite3.dbapi2"] = pysqlite3
+        os.environ["CHROMA_DB_IMPL"] = "duckdb+parquet"
+        os.environ["ANONYMIZED_TELEMETRY"] = "False"
+        print("✅ Inline SQLite3 setup completed")
+        sqlite_success = True
+    except ImportError as e:
+        print(f"❌ SQLite3 setup failed: {e}")
+        sqlite_success = False
+
+# FORCE CrewAI to work - try multiple approaches
+CREWAI_AVAILABLE = False
+CREWAI_ERROR = None
+
+# Attempt 1: Direct import after SQLite setup
+if sqlite_success:
+    try:
+        from crewai import Agent, Task, Crew, Process, LLM
+        from crewai_tools import SerperDevTool
+        CREWAI_AVAILABLE = True
+        print("✅ CrewAI imported successfully after SQLite setup")
+    except Exception as e:
+        CREWAI_ERROR = str(e)
+        print(f"❌ CrewAI import failed (Attempt 1): {e}")
+
+# Attempt 2: Try with additional environment variables
+if not CREWAI_AVAILABLE:
+    try:
+        os.environ["CHROMA_DB_IMPL"] = "duckdb+parquet"
+        os.environ["ANONYMIZED_TELEMETRY"] = "False"
+        os.environ["ALLOW_RESET"] = "TRUE"
+
+        from crewai import Agent, Task, Crew, Process, LLM
+        from crewai_tools import SerperDevTool
+        CREWAI_AVAILABLE = True
+        print("✅ CrewAI imported successfully (Attempt 2)")
+    except Exception as e:
+        CREWAI_ERROR = str(e)
+        print(f"❌ CrewAI import failed (Attempt 2): {e}")
+
+# Attempt 3: Import individual components
+if not CREWAI_AVAILABLE:
+    try:
+        # Try importing ChromaDB directly first
+        import chromadb
+        print(f"✅ ChromaDB imported successfully: {chromadb.__version__}")
+
+        from crewai import Agent, Task, Crew, Process, LLM
+        from crewai_tools import SerperDevTool
+        CREWAI_AVAILABLE = True
+        print("✅ CrewAI imported successfully (Attempt 3)")
+    except Exception as e:
+        CREWAI_ERROR = str(e)
+        print(f"❌ CrewAI import failed (Attempt 3): {e}")
+
+# Fallback libraries
+if not CREWAI_AVAILABLE:
     try:
         import requests
         from openai import OpenAI
@@ -1171,21 +1222,39 @@ def display_results():
 def main():
     """Main Streamlit application."""
 
-    # Check if required components are available
-    if not CREWAI_AVAILABLE and not FALLBACK_AVAILABLE:
-        st.error("🚨 **Application Initialization Failed**")
-        st.error("Neither CrewAI nor fallback libraries are available.")
+    # Priority check: CrewAI MUST be available for this project
+    if not CREWAI_AVAILABLE:
+        st.error("🚨 **CrewAI Framework Required**")
+        st.error("This application is built around CrewAI multi-agent framework and cannot function without it.")
+
+        if CREWAI_ERROR:
+            st.error(f"**Error Details:** {CREWAI_ERROR}")
+
+        st.markdown("### 🔧 **Troubleshooting Steps:**")
+        st.markdown("1. **Check SQLite Version**: ChromaDB requires SQLite 3.35.0+")
+        st.markdown("2. **Verify Dependencies**: Ensure all packages are properly installed")
+        st.markdown("3. **Try Local Deployment**: Use Python 3.11 or 3.12 locally")
+        st.markdown("4. **Alternative Platforms**: Consider Heroku, Railway, or Google Cloud Run")
+
+        st.markdown("### 🛠️ **For Developers:**")
+        st.code(f"""
+# Check SQLite version
+import sqlite3
+print(f"SQLite version: {{sqlite3.sqlite_version}}")
+
+# Install compatible version
+pip install pysqlite3-binary
+pip install chromadb==0.4.22
+pip install crewai==0.130.0
+        """)
+
         st.stop()
 
-    # Show mode indicator
-    if not CREWAI_AVAILABLE:
-        st.warning("⚠️ **Simplified Mode**: Running without CrewAI due to platform limitations")
-        st.info("💡 **Features available**: Direct API research, basic content generation")
+    # Success! CrewAI is available
+    st.success("✅ **CrewAI Framework Active** - Full multi-agent functionality enabled")
 
     if not CUSTOM_MODULES_AVAILABLE:
         st.warning("⚠️ **Limited Features**: Some advanced features may not be available")
-
-    # Continue with simplified functionality
 
     # Initialize session state
     if 'processing' not in st.session_state:

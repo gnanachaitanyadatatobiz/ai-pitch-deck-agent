@@ -14,5 +14,6 @@ langchain-core
 langchain-community
 pinecone
 pysqlite3-binary
-crewai
-crewai-tools
+chromadb==0.4.22
+crewai==0.130.0
+crewai-tools==0.58.0
