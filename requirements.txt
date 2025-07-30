@@ -1,27 +1,16 @@
-# Core Streamlit and utilities
 streamlit
 python-dotenv
-openai>=1.0.0
+openai
 tiktoken
-
-# Document processing
 PyPDF2
 python-pptx
 pdfplumber
-
-# Data processing
 numpy
 pandas
 tqdm
-
-# AI and LangChain (without ChromaDB conflicts)
 langchain-openai
 langchain-core
 langchain-community
-
-# Vector database
-pinecone-client>=3.0.0,<4.0.0
-
-# CrewAI with specific versions to avoid ChromaDB
-crewai==0.80.0
-crewai-tools==0.0.10
+pinecone-client
+crewai
+crewai-tools
