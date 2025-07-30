@@ -99,14 +99,12 @@ if sqlite_success:
                                     }
                                     results.append(result_item)
 
-                            # Format response similar to original SerperDevTool
-                            formatted_response = f"Search Results for: {query}\n\n"
-                            for i, result in enumerate(results, 1):
-                                formatted_response += f"{i}. {result['title']}\n"
-                                formatted_response += f"   URL: {result['link']}\n"
-                                formatted_response += f"   {result['snippet']}\n\n"
-
-                            return formatted_response
+                            # Return the actual data structure for URL extraction
+                            return {
+                                'organic': results,
+                                'query': query,
+                                'total_results': len(results)
+                            }
 
                         except Exception as e:
                             logger.error(f"❌ Serper API call failed: {e}")
@@ -710,17 +708,29 @@ OUTPUT FORMAT:
                         logger.info(f"🔍 Searching: {query}")
                         # Use the correct method to call SerperDevTool
                         search_result = search_tool.run(query=query)
+                        logger.info(f"🔍 Search result type: {type(search_result)}")
+                        logger.info(f"🔍 Search result preview: {str(search_result)[:200]}...")
 
                         # Extract sources from this search
-                        if isinstance(search_result, str):
+                        query_sources = []
+
+                        if isinstance(search_result, dict):
+                            # Direct dictionary response from fallback SerperDevTool
+                            query_sources = extract_sources_from_data(search_result)
+                            logger.info(f"✅ Found {len(query_sources)} sources from dict response: {query[:50]}...")
+                        elif isinstance(search_result, str):
                             try:
+                                # Try to parse as JSON first
                                 import json
                                 parsed_result = json.loads(search_result)
                                 query_sources = extract_sources_from_data(parsed_result)
-                                direct_sources.extend(query_sources)
-                                logger.info(f"✅ Found {len(query_sources)} sources from query: {query[:50]}...")
+                                logger.info(f"✅ Found {len(query_sources)} sources from JSON response: {query[:50]}...")
                             except:
-                                pass
+                                # If not JSON, extract URLs from text
+                                query_sources = extract_urls_from_text(search_result)
+                                logger.info(f"✅ Found {len(query_sources)} sources from text response: {query[:50]}...")
+
+                        direct_sources.extend(query_sources)
                     except Exception as e:
                         logger.error(f"❌ Direct search failed for query '{query}': {e}")
 
