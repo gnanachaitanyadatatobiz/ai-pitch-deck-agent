@@ -11,15 +11,26 @@ from datetime import datetime
 import streamlit as st
 from dotenv import load_dotenv
 
+# SQLite3 compatibility fix for Streamlit Cloud
+try:
+    import sys
+    import pysqlite3
+    sys.modules["sqlite3"] = pysqlite3
+    print("✅ SQLite3 patched with pysqlite3")
+except ImportError:
+    print("⚠️ pysqlite3 not available, using system sqlite3")
+    pass
+
 # Handle potential ChromaDB/SQLite issues on Streamlit Cloud
 try:
     from crewai import Agent, Task, Crew, Process, LLM
     from crewai_tools import SerperDevTool
     CREWAI_AVAILABLE = True
-except ImportError as e:
-    st.error(f"CrewAI import failed: {e}")
-    st.error("This might be due to SQLite version compatibility on Streamlit Cloud.")
-    st.stop()
+    print("✅ CrewAI imported successfully")
+except (ImportError, RuntimeError) as e:
+    CREWAI_AVAILABLE = False
+    print(f"❌ CrewAI failed to load: {e}")
+    # Don't stop the app, just disable CrewAI features
 
 # Import our custom modules
 try:
@@ -27,10 +38,12 @@ try:
     from content_agent import ContentAgent
     from output_manager import OutputManager
     from vector_database import VectorDatabase
+    CUSTOM_MODULES_AVAILABLE = True
+    print("✅ Custom modules imported successfully")
 except ImportError as e:
-    st.error(f"Custom module import failed: {e}")
-    st.error("Please ensure all required files are present in the repository.")
-    st.stop()
+    CUSTOM_MODULES_AVAILABLE = False
+    print(f"❌ Custom module import failed: {e}")
+    # Don't stop the app, show error in UI instead
 
 # Configure logging
 logging.basicConfig(
@@ -992,6 +1005,25 @@ def display_results():
 
 def main():
     """Main Streamlit application."""
+
+    # Check if required components are available
+    if not CREWAI_AVAILABLE or not CUSTOM_MODULES_AVAILABLE:
+        st.error("🚨 **Application Initialization Failed**")
+        st.error("This application requires CrewAI and custom modules to function properly.")
+
+        if not CREWAI_AVAILABLE:
+            st.error("❌ **CrewAI not available**: This might be due to SQLite version compatibility on Streamlit Cloud.")
+            st.info("💡 **Possible solutions:**")
+            st.info("- Try deploying on a different platform (Heroku, Railway, etc.)")
+            st.info("- Use a local deployment with Python 3.11 or 3.12")
+            st.info("- Contact support for environment compatibility")
+
+        if not CUSTOM_MODULES_AVAILABLE:
+            st.error("❌ **Custom modules not available**: Required files missing from repository.")
+            st.info("💡 **Required files:** knowledge_agent.py, content_agent.py, output_manager.py, vector_database.py")
+
+        st.stop()
+
     # Initialize session state
     if 'processing' not in st.session_state:
         st.session_state.processing = False

@@ -12,5 +12,6 @@ langchain-openai
 langchain-core
 langchain-community
 pinecone-client
+pysqlite3-binary
 crewai
 crewai-tools
