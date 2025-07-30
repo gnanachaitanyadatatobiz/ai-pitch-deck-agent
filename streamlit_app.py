@@ -39,203 +39,226 @@ except ImportError:
 CREWAI_AVAILABLE = False
 CREWAI_ERROR = None
 
-# Attempt 1: Try different SerperDevTool import paths
-if sqlite_success:
-    try:
-        from crewai import Agent, Task, Crew, Process, LLM
+# Server-side loop prevention using environment variable
+import os
+if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
+    # Running on Streamlit Cloud - use more aggressive loop prevention
+    if 'server_init_done' not in st.session_state:
+        st.session_state.server_init_done = False
 
-        # Try correct import paths for SerperDevTool
-        SerperDevTool = None
+    if st.session_state.server_init_done:
+        print("� Server initialization already completed - skipping")
+        # Skip all initialization and jump to main app
+        CREWAI_AVAILABLE = st.session_state.get('crewai_available', False)
+        CUSTOM_MODULES_AVAILABLE = st.session_state.get('custom_modules_available', False)
+    else:
+        print("🚀 First-time server initialization starting...")
+
+# Only run initialization if not already done
+if not st.session_state.get('server_init_done', False):
+    # Attempt 1: Try different SerperDevTool import paths
+    if sqlite_success:
         try:
-            # Primary import path for CrewAI tools
-            from crewai_tools import SerperDevTool
-            print("✅ SerperDevTool imported from crewai_tools")
-        except ImportError:
+            from crewai import Agent, Task, Crew, Process, LLM
+
+            # Try correct import paths for SerperDevTool
+            SerperDevTool = None
             try:
-                # Alternative import for older versions
-                from langchain_community.tools import SerperDevTool
-                print("✅ SerperDevTool imported from langchain_community.tools")
+                # Primary import path for CrewAI tools
+                from crewai_tools import SerperDevTool
+                print("✅ SerperDevTool imported from crewai_tools")
             except ImportError:
-                print("❌ SerperDevTool not found - creating fallback implementation")
+                try:
+                    # Alternative import for older versions
+                    from langchain_community.tools import SerperDevTool
+                    print("✅ SerperDevTool imported from langchain_community.tools")
+                except ImportError:
+                    print("❌ SerperDevTool not found - creating fallback implementation")
 
-                # Create fallback SerperDevTool class
-                class SerperDevTool:
-                    """Fallback SerperDevTool implementation using direct Serper API calls."""
+                    # Create fallback SerperDevTool class
+                    class SerperDevTool:
+                        """Fallback SerperDevTool implementation using direct Serper API calls."""
 
-                    def __init__(self):
-                        self.api_key = os.getenv('SERPER_API_KEY')
-                        if not self.api_key:
-                            raise ValueError("SERPER_API_KEY not found in environment variables")
+                        def __init__(self):
+                            self.api_key = os.getenv('SERPER_API_KEY')
+                            if not self.api_key:
+                                raise ValueError("SERPER_API_KEY not found in environment variables")
 
-                    def run(self, query):
-                        """Run a search query using Serper API."""
-                        try:
-                            import requests
+                        def run(self, query):
+                            """Run a search query using Serper API."""
+                            try:
+                                import requests
 
-                            url = "https://google.serper.dev/search"
-                            headers = {
-                                'X-API-KEY': self.api_key,
-                                'Content-Type': 'application/json'
-                            }
-                            payload = {
-                                'q': query,
-                                'num': 10
-                            }
+                                url = "https://google.serper.dev/search"
+                                headers = {
+                                    'X-API-KEY': self.api_key,
+                                    'Content-Type': 'application/json'
+                                }
+                                payload = {
+                                    'q': query,
+                                    'num': 10
+                                }
 
-                            response = requests.post(url, headers=headers, json=payload)
-                            response.raise_for_status()
+                                response = requests.post(url, headers=headers, json=payload)
+                                response.raise_for_status()
 
-                            data = response.json()
+                                data = response.json()
 
-                            # Format results with URLs
-                            results = []
-                            if 'organic' in data:
-                                for item in data['organic'][:5]:  # Top 5 results
-                                    result_item = {
-                                        'title': item.get('title', ''),
-                                        'link': item.get('link', ''),
-                                        'snippet': item.get('snippet', ''),
-                                        'url': item.get('link', '')  # Ensure URL is included
-                                    }
-                                    results.append(result_item)
+                                # Format results with URLs
+                                results = []
+                                if 'organic' in data:
+                                    for item in data['organic'][:5]:  # Top 5 results
+                                        result_item = {
+                                            'title': item.get('title', ''),
+                                            'link': item.get('link', ''),
+                                            'snippet': item.get('snippet', ''),
+                                            'url': item.get('link', '')  # Ensure URL is included
+                                        }
+                                        results.append(result_item)
 
-                            # Return the actual data structure for URL extraction
-                            return {
-                                'organic': results,
-                                'query': query,
-                                'total_results': len(results)
-                            }
+                                # Return the actual data structure for URL extraction
+                                return {
+                                    'organic': results,
+                                    'query': query,
+                                    'total_results': len(results)
+                                }
 
-                        except Exception as e:
-                            logger.error(f"❌ Serper API call failed: {e}")
-                            return f"Error: Search failed - {str(e)}"
+                            except Exception as e:
+                                logger.error(f"❌ Serper API call failed: {e}")
+                                return f"Error: Search failed - {str(e)}"
 
-        if SerperDevTool is not None:
+            if SerperDevTool is not None:
+                CREWAI_AVAILABLE = True
+                print("✅ CrewAI imported successfully after SQLite setup")
+            else:
+                raise ImportError("SerperDevTool not available")
+
+        except Exception as e:
+            CREWAI_ERROR = str(e)
+            print(f"❌ CrewAI import failed (Attempt 1): {e}")
+
+    # Attempt 2: Try with additional environment variables
+    if not CREWAI_AVAILABLE:
+        try:
+            os.environ["CHROMA_DB_IMPL"] = "duckdb+parquet"
+            os.environ["ANONYMIZED_TELEMETRY"] = "False"
+            os.environ["ALLOW_RESET"] = "TRUE"
+
+            from crewai import Agent, Task, Crew, Process, LLM
+
+            # Try multiple import paths for SerperDevTool
+            SerperDevTool = None
+            try:
+                from crewai_tools import SerperDevTool
+            except ImportError:
+                try:
+                    from langchain_community.tools import SerperDevTool
+                except ImportError:
+                    # Use fallback SerperDevTool if import fails
+                    SerperDevTool = None
+
             CREWAI_AVAILABLE = True
-            print("✅ CrewAI imported successfully after SQLite setup")
-        else:
-            raise ImportError("SerperDevTool not available")
+            print("✅ CrewAI imported successfully (Attempt 2)")
+        except Exception as e:
+            CREWAI_ERROR = str(e)
+            print(f"❌ CrewAI import failed (Attempt 2): {e}")
 
-    except Exception as e:
-        CREWAI_ERROR = str(e)
-        print(f"❌ CrewAI import failed (Attempt 1): {e}")
-
-# Attempt 2: Try with additional environment variables
-if not CREWAI_AVAILABLE:
-    try:
-        os.environ["CHROMA_DB_IMPL"] = "duckdb+parquet"
-        os.environ["ANONYMIZED_TELEMETRY"] = "False"
-        os.environ["ALLOW_RESET"] = "TRUE"
-
-        from crewai import Agent, Task, Crew, Process, LLM
-
-        # Try multiple import paths for SerperDevTool
-        SerperDevTool = None
+    # Attempt 3: Import individual components
+    if not CREWAI_AVAILABLE:
         try:
-            from crewai_tools import SerperDevTool
-        except ImportError:
+            # Try importing ChromaDB directly first
+            import chromadb
+            print(f"✅ ChromaDB imported successfully: {chromadb.__version__}")
+
+            from crewai import Agent, Task, Crew, Process, LLM
+
+            # Try multiple import paths for SerperDevTool
+            SerperDevTool = None
             try:
-                from langchain_community.tools import SerperDevTool
+                from crewai_tools import SerperDevTool
             except ImportError:
-                # Use fallback SerperDevTool if import fails
-                SerperDevTool = None
+                try:
+                    from langchain_community.tools import SerperDevTool
+                except ImportError:
+                    # Use fallback SerperDevTool if import fails
+                    SerperDevTool = None
 
-        CREWAI_AVAILABLE = True
-        print("✅ CrewAI imported successfully (Attempt 2)")
-    except Exception as e:
-        CREWAI_ERROR = str(e)
-        print(f"❌ CrewAI import failed (Attempt 2): {e}")
+            CREWAI_AVAILABLE = True
+            print("✅ CrewAI imported successfully (Attempt 3)")
+        except Exception as e:
+            CREWAI_ERROR = str(e)
+            print(f"❌ CrewAI import failed (Attempt 3): {e}")
 
-# Attempt 3: Import individual components
-if not CREWAI_AVAILABLE:
-    try:
-        # Try importing ChromaDB directly first
-        import chromadb
-        print(f"✅ ChromaDB imported successfully: {chromadb.__version__}")
+    # Create a simple SerperDevTool fallback if not available
+    if CREWAI_AVAILABLE and 'SerperDevTool' not in globals():
+        print("⚠️ SerperDevTool not available, creating fallback")
 
-        from crewai import Agent, Task, Crew, Process, LLM
+        class SerperDevTool:
+            """Fallback SerperDevTool implementation using direct API calls."""
 
-        # Try multiple import paths for SerperDevTool
-        SerperDevTool = None
+            def __init__(self):
+                self.api_key = os.getenv('SERPER_API_KEY')
+
+            def run(self, query):
+                """Run search using Serper API directly."""
+                if not self.api_key:
+                    return "Error: SERPER_API_KEY not configured"
+
+                try:
+                    import requests
+                    url = "https://google.serper.dev/search"
+                    headers = {
+                        'X-API-KEY': self.api_key,
+                        'Content-Type': 'application/json'
+                    }
+                    payload = {'q': query, 'num': 5}
+
+                    response = requests.post(url, headers=headers, json=payload)
+                    if response.status_code == 200:
+                        data = response.json()
+
+                        # Format results similar to SerperDevTool
+                        results = []
+                        if 'organic' in data:
+                            for result in data['organic'][:5]:
+                                results.append(f"**{result.get('title', '')}**\n{result.get('snippet', '')}\nSource: {result.get('link', '')}\n")
+
+                        return "\n".join(results) if results else "No results found"
+                    else:
+                        return f"Search failed with status {response.status_code}"
+
+                except Exception as e:
+                    return f"Search error: {e}"
+
+    # Fallback libraries
+    if not CREWAI_AVAILABLE:
         try:
-            from crewai_tools import SerperDevTool
-        except ImportError:
-            try:
-                from langchain_community.tools import SerperDevTool
-            except ImportError:
-                # Use fallback SerperDevTool if import fails
-                SerperDevTool = None
+            import requests
+            from openai import OpenAI
+            FALLBACK_AVAILABLE = True
+            print("✅ Fallback libraries available")
+        except ImportError as fallback_e:
+            FALLBACK_AVAILABLE = False
+            print(f"❌ Fallback libraries failed: {fallback_e}")
 
-        CREWAI_AVAILABLE = True
-        print("✅ CrewAI imported successfully (Attempt 3)")
-    except Exception as e:
-        CREWAI_ERROR = str(e)
-        print(f"❌ CrewAI import failed (Attempt 3): {e}")
-
-# Create a simple SerperDevTool fallback if not available
-if CREWAI_AVAILABLE and 'SerperDevTool' not in globals():
-    print("⚠️ SerperDevTool not available, creating fallback")
-
-    class SerperDevTool:
-        """Fallback SerperDevTool implementation using direct API calls."""
-
-        def __init__(self):
-            self.api_key = os.getenv('SERPER_API_KEY')
-
-        def run(self, query):
-            """Run search using Serper API directly."""
-            if not self.api_key:
-                return "Error: SERPER_API_KEY not configured"
-
-            try:
-                import requests
-                url = "https://google.serper.dev/search"
-                headers = {
-                    'X-API-KEY': self.api_key,
-                    'Content-Type': 'application/json'
-                }
-                payload = {'q': query, 'num': 5}
-
-                response = requests.post(url, headers=headers, json=payload)
-                if response.status_code == 200:
-                    data = response.json()
-
-                    # Format results similar to SerperDevTool
-                    results = []
-                    if 'organic' in data:
-                        for result in data['organic'][:5]:
-                            results.append(f"**{result.get('title', '')}**\n{result.get('snippet', '')}\nSource: {result.get('link', '')}\n")
-
-                    return "\n".join(results) if results else "No results found"
-                else:
-                    return f"Search failed with status {response.status_code}"
-
-            except Exception as e:
-                return f"Search error: {e}"
-
-# Fallback libraries
-if not CREWAI_AVAILABLE:
+    # Import our custom modules
     try:
-        import requests
-        from openai import OpenAI
-        FALLBACK_AVAILABLE = True
-        print("✅ Fallback libraries available")
-    except ImportError as fallback_e:
-        FALLBACK_AVAILABLE = False
-        print(f"❌ Fallback libraries failed: {fallback_e}")
+        from knowledge_agent import KnowledgeAgent
+        from content_agent import ContentAgent
+        from output_manager import OutputManager
+        from vector_database import VectorDatabase
+        CUSTOM_MODULES_AVAILABLE = True
+        print("✅ Custom modules imported successfully")
+    except ImportError as e:
+        CUSTOM_MODULES_AVAILABLE = False
+        print(f"❌ Custom module import failed: {e}")
+        # Don't stop the app, show error in UI instead
 
-# Import our custom modules
-try:
-    from knowledge_agent import KnowledgeAgent
-    from content_agent import ContentAgent
-    from output_manager import OutputManager
-    from vector_database import VectorDatabase
-    CUSTOM_MODULES_AVAILABLE = True
-    print("✅ Custom modules imported successfully")
-except ImportError as e:
-    CUSTOM_MODULES_AVAILABLE = False
-    print(f"❌ Custom module import failed: {e}")
-    # Don't stop the app, show error in UI instead
+    # Mark initialization as complete to prevent loops
+    st.session_state.server_init_done = True
+    st.session_state.crewai_available = CREWAI_AVAILABLE
+    st.session_state.custom_modules_available = CUSTOM_MODULES_AVAILABLE
+    print("🎯 Initialization completed - preventing future loops")
 
 # Configure logging
 logging.basicConfig(
