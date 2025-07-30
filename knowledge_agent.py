@@ -62,24 +62,51 @@ class GetCompanyDataTool(BaseTool):
     description: str = "Retrieves and summarizes context for companies similar to the user's startup based on industry and problem description."
 
     def _run(self, query: str) -> str:
-        db = VectorDatabase()
-        # The tool now performs a general search, not a targeted company lookup
-        context = db.search_by_query(query)
-        if not context:
-            return "No relevant context found for the query."
-        return context
+        try:
+            db = VectorDatabase()
+            # The tool now performs a general search, not a targeted company lookup
+            context = db.search_by_query(query)
+            if not context:
+                return "No relevant context found for the query."
+            return context
+        except Exception as e:
+            return f"Error retrieving context: {str(e)}"
+
+    def run(self, query: str) -> str:
+        """Public run method for compatibility."""
+        return self._run(query)
 
 class KnowledgeAgent:
     def __init__(self):
         self.llm = None  # LLM is set by the Streamlit app
-        self.agent = Agent(
-            role="Startup Ecosystem Analyst",
-            goal="Provide foundational context and risk analysis by finding comparable companies in a vector database",
-            backstory="You are an expert analyst with a deep understanding of the startup ecosystem. You specialize in using a knowledge base of past startups to identify patterns, risks, and opportunities for new ventures. You are meticulous in citing your sources.",
-            tools=[GetCompanyDataTool()],
-            allow_delegation=False,
-            verbose=True,
-        )
+
+        # Initialize tools with error handling
+        try:
+            self.tools = [GetCompanyDataTool()]
+        except Exception as e:
+            logger.warning(f"Failed to initialize GetCompanyDataTool: {e}")
+            self.tools = []
+
+        try:
+            self.agent = Agent(
+                role="Startup Ecosystem Analyst",
+                goal="Provide foundational context and risk analysis by finding comparable companies in a vector database",
+                backstory="You are an expert analyst with a deep understanding of the startup ecosystem. You specialize in using a knowledge base of past startups to identify patterns, risks, and opportunities for new ventures. You are meticulous in citing your sources.",
+                tools=self.tools,
+                allow_delegation=False,
+                verbose=True,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create Agent with tools: {e}")
+            # Create agent without tools as fallback
+            self.agent = Agent(
+                role="Startup Ecosystem Analyst",
+                goal="Provide foundational context and risk analysis by finding comparable companies in a vector database",
+                backstory="You are an expert analyst with a deep understanding of the startup ecosystem. You specialize in using a knowledge base of past startups to identify patterns, risks, and opportunities for new ventures. You are meticulous in citing your sources.",
+                tools=[],
+                allow_delegation=False,
+                verbose=True,
+            )
         self.knowledge_task = Task(
             description="""
             Your primary goal is to find relevant context for a new startup from the knowledge base.
@@ -134,3 +161,18 @@ class KnowledgeAgent:
         )
         result = knowledge_crew.kickoff(inputs={"input": query})
         return str(result)
+
+    def quick_company_check(self, company_name: str) -> bool:
+        """
+        Quick check to see if a company exists in the knowledge base.
+        Returns True if found, False otherwise.
+        """
+        try:
+            db = VectorDatabase()
+            # Search for the company name directly
+            context = db.search_by_query(company_name)
+            # If we get meaningful context back, the company likely exists
+            return bool(context and len(context.strip()) > 50)
+        except Exception as e:
+            logger.error(f"Error in quick_company_check: {e}")
+            return False
