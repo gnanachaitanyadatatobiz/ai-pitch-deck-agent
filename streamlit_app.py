@@ -11,14 +11,42 @@ from datetime import datetime
 import streamlit as st
 from dotenv import load_dotenv
 
-# Import CrewAI with error handling
+# Configure environment to avoid ChromaDB issues BEFORE importing CrewAI
+os.environ["ANONYMIZED_TELEMETRY"] = "false"
+os.environ["CHROMA_SERVER_NOFILE"] = "1"
+os.environ["ALLOW_RESET"] = "TRUE"
+
+# Monkey patch to prevent ChromaDB import issues
+import sys
+import types
+
+def mock_chromadb():
+    """Create a mock chromadb module to prevent import errors."""
+    mock_module = types.ModuleType('chromadb')
+    mock_module.Documents = list
+    mock_module.EmbeddingFunction = object
+    mock_module.Embeddings = list
+    return mock_module
+
+# Pre-emptively add mock chromadb to sys.modules
+if 'chromadb' not in sys.modules:
+    sys.modules['chromadb'] = mock_chromadb()
+
+# Import CrewAI with enhanced error handling
 try:
     from crewai import Agent, Task, Crew, Process, LLM
     from crewai_tools import SerperDevTool
     CREWAI_AVAILABLE = True
 except ImportError as e:
     st.error(f"CrewAI import error: {e}")
-    st.error("Please ensure all dependencies are properly installed.")
+    st.error("This appears to be a Python version compatibility issue.")
+    st.error("Please ensure Python 3.11 is being used.")
+    st.info("Contact support if this issue persists.")
+    st.stop()
+    CREWAI_AVAILABLE = False
+except Exception as e:
+    st.error(f"Unexpected error importing CrewAI: {e}")
+    st.error("Please check the application logs for more details.")
     st.stop()
     CREWAI_AVAILABLE = False
 
@@ -42,9 +70,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Configure environment to avoid ChromaDB issues
-os.environ["ANONYMIZED_TELEMETRY"] = "false"
-os.environ["CHROMA_SERVER_NOFILE"] = "1"
+
 
 def configure_llm():
     """Configure and return the LLM instance with OpenAI settings."""
