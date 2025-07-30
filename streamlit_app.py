@@ -188,8 +188,25 @@ def run_research_agent_simple(startup_data, research_prompt=None):
 
         logger.info(f"🔍 Starting research for: {startup_data.get('startup_name', 'Unknown')}")
 
+        # Check for SERPER_API_KEY
+        serper_api_key = os.getenv('SERPER_API_KEY')
+        if not serper_api_key:
+            logger.error("❌ SERPER_API_KEY not found in environment variables")
+            return "Error: SERPER_API_KEY not configured. Please add your Serper API key to the secrets.", [], {"error": "Missing SERPER_API_KEY"}
+
+        # Get LLM configuration
+        llm = get_llm()
+        if not llm:
+            logger.error("❌ Failed to initialize LLM for research agent")
+            return "Error: LLM initialization failed", [], {"error": "LLM initialization failed"}
+
         # Initialize tools with enhanced configuration
-        search_tool = SerperDevTool()
+        try:
+            search_tool = SerperDevTool()
+            logger.info(f"✅ SerperDevTool initialized successfully with API key: {serper_api_key[:10]}...")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize SerperDevTool: {e}")
+            return f"Error: Failed to initialize search tool: {e}", [], {"error": f"SerperDevTool initialization failed: {e}"}
 
         # Test the search tool directly to see what it returns
         logger.info("🔧 Testing SerperDevTool directly...")
@@ -200,8 +217,15 @@ def run_research_agent_simple(startup_data, research_prompt=None):
 
             logger.info(f"🔍 Direct SerperDevTool test result type: {type(test_result)}")
             logger.info(f"🔍 Direct SerperDevTool test result: {str(test_result)[:500]}...")
+
+            # Check if the test result contains actual search data
+            if not test_result or "No results found" in str(test_result):
+                logger.warning("⚠️ SerperDevTool test returned no results - API key might be invalid")
+                return "Error: SerperDevTool returned no results. Please check your SERPER_API_KEY.", [], {"error": "No search results"}
+
         except Exception as e:
             logger.error(f"❌ SerperDevTool direct test failed: {e}")
+            return f"Error: SerperDevTool test failed: {e}", [], {"error": f"SerperDevTool test failed: {e}"}
 
         # Setup research agent with enhanced instructions
         research_agent = Agent(
@@ -236,17 +260,39 @@ def run_research_agent_simple(startup_data, research_prompt=None):
         logger.info(f"📝 Research task: {task_description[:100]}...")
         
         research_task = Task(
-            description=task_description + """
+            description=f"""
+RESEARCH TASK: {task_description}
 
-CRITICAL INSTRUCTIONS:
-1. Use the search tool to gather comprehensive information
-2. Include ALL source URLs found during research
-3. For each key finding, include the source URL in parentheses
-4. Provide a comprehensive list of all sources used
-5. Include market data, competitor information, and industry trends
-6. Return structured information with clear source attribution
+MANDATORY REQUIREMENTS:
+1. MUST use the search tool for EVERY piece of information
+2. MUST include the actual URL source for EVERY fact or statistic
+3. MUST format findings as: "Finding (Source: https://example.com)"
+4. MUST provide a "SOURCES USED" section at the end with all URLs
+5. MUST search for: market size, competitors, trends, recent news
+6. MUST verify information with multiple sources when possible
+
+SEARCH QUERIES TO PERFORM:
+- "{startup_data.get('startup_name', 'startup')} competitors market analysis"
+- "{startup_data.get('industry_type', 'technology')} market size trends 2024"
+- "{startup_data.get('industry_type', 'technology')} industry news recent developments"
+- "market opportunities {startup_data.get('industry_type', 'technology')} sector"
+
+OUTPUT FORMAT:
+## Market Analysis
+[Include findings with source URLs]
+
+## Competitor Analysis
+[Include competitor info with source URLs]
+
+## Industry Trends
+[Include trends with source URLs]
+
+## SOURCES USED
+- https://source1.com
+- https://source2.com
+- [etc.]
             """,
-            expected_output="A comprehensive market research report with detailed insights, competitor analysis, market trends, and a complete list of all source URLs used in the research.",
+            expected_output="A comprehensive market research report with detailed insights, competitor analysis, market trends, and a complete list of all source URLs used in the research. Every fact must include its source URL.",
             agent=research_agent
         )
         
