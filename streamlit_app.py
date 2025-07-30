@@ -54,13 +54,8 @@ if sqlite_success:
                 from crewai.tools import SerperDevTool
                 print("✅ SerperDevTool imported from crewai.tools")
             except ImportError:
-                try:
-                    # Try alternative import paths
-                    from crewai.tools.serper_search import SerperDevTool
-                    print("✅ SerperDevTool imported from crewai.tools.serper_search")
-                except ImportError:
-                    print("❌ SerperDevTool not found in any location")
-                    SerperDevTool = None
+                print("❌ SerperDevTool not found in any location")
+                SerperDevTool = None
 
         if SerperDevTool is not None:
             CREWAI_AVAILABLE = True
@@ -325,6 +320,9 @@ def extract_urls_from_text(text):
 def run_simplified_research(startup_data, research_prompt=None):
     """Simplified research function that works without CrewAI using direct API calls."""
     try:
+        # Note: research_prompt parameter is kept for compatibility but not used in simplified mode
+        _ = research_prompt  # Acknowledge the parameter to avoid warnings
+
         # Validate startup_data
         if not startup_data or not isinstance(startup_data, dict):
             logger.error("❌ Invalid startup_data provided to research")
@@ -837,7 +835,6 @@ def run_enhanced_workflow():
             else:
                 research_output, research_sources, research_raw_result = run_simplified_research(startup_data, research_prompt)
         # Ensure research_raw_result is JSON serializable
-        import collections.abc
         def make_json_safe(obj):
             if isinstance(obj, (dict, list, str, int, float, bool)) or obj is None:
                 return obj
@@ -1187,6 +1184,7 @@ def display_results():
             research_output = report_data.get('research_output', '')
             research_sources = report_data.get('research_sources', [])
             research_raw_result = report_data.get('research_raw_result', None)
+            _ = research_raw_result  # Acknowledge variable to avoid warnings
 
             with st.expander("🔍 View Source Context Used", expanded=False):
                 if source_doc and 'No relevant documents found' not in source_doc:
