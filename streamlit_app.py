@@ -10,8 +10,17 @@ import traceback
 from datetime import datetime
 import streamlit as st
 from dotenv import load_dotenv
-from crewai import Agent, Task, Crew, Process, LLM
-from crewai_tools import SerperDevTool
+
+# Import CrewAI with error handling
+try:
+    from crewai import Agent, Task, Crew, Process, LLM
+    from crewai_tools import SerperDevTool
+    CREWAI_AVAILABLE = True
+except ImportError as e:
+    st.error(f"CrewAI import error: {e}")
+    st.error("Please ensure all dependencies are properly installed.")
+    st.stop()
+    CREWAI_AVAILABLE = False
 
 # Import our custom modules
 from knowledge_agent import KnowledgeAgent
@@ -32,6 +41,10 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
+
+# Configure environment to avoid ChromaDB issues
+os.environ["ANONYMIZED_TELEMETRY"] = "false"
+os.environ["CHROMA_SERVER_NOFILE"] = "1"
 
 def configure_llm():
     """Configure and return the LLM instance with OpenAI settings."""
