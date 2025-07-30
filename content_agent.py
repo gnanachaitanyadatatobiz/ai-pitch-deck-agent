@@ -9,7 +9,18 @@ import json
 from typing import Dict, Any
 from datetime import datetime
 from crewai import Agent, Task, Crew, Process, LLM
-from crewai.tools import BaseTool
+# BaseTool import - try multiple paths
+try:
+    from crewai_tools import BaseTool
+except ImportError:
+    try:
+        from langchain.tools import BaseTool
+    except ImportError:
+        # Create a simple BaseTool fallback
+        class BaseTool:
+            def __init__(self, name="", description=""):
+                self.name = name
+                self.description = description
 from pydantic import BaseModel, Field
 from vector_database import VectorDatabase
 from pptx import Presentation

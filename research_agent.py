@@ -5,9 +5,71 @@ Implements the Market & Competitor Research agent using CrewAI.
 
 import os
 import logging
+import requests
+import json
 from crewai import Agent, Task, Crew, Process, LLM
-from crewai_tools import SerperDevTool
 from dotenv import load_dotenv
+
+# Try to import SerperDevTool with fallback
+try:
+    from crewai_tools import SerperDevTool
+    print("✅ SerperDevTool imported from crewai_tools")
+except ImportError:
+    try:
+        from langchain_community.tools import SerperDevTool
+        print("✅ SerperDevTool imported from langchain_community.tools")
+    except ImportError:
+        print("❌ SerperDevTool not found - using fallback implementation")
+
+        class SerperDevTool:
+            """Fallback SerperDevTool implementation using direct Serper API calls."""
+
+            def __init__(self):
+                self.api_key = os.getenv('SERPER_API_KEY')
+                if not self.api_key:
+                    raise ValueError("SERPER_API_KEY not found in environment variables")
+
+            def run(self, query):
+                """Run a search query using Serper API."""
+                try:
+                    url = "https://google.serper.dev/search"
+                    headers = {
+                        'X-API-KEY': self.api_key,
+                        'Content-Type': 'application/json'
+                    }
+                    payload = {
+                        'q': query,
+                        'num': 10
+                    }
+
+                    response = requests.post(url, headers=headers, json=payload)
+                    response.raise_for_status()
+
+                    data = response.json()
+
+                    # Format results similar to original SerperDevTool
+                    results = []
+                    if 'organic' in data:
+                        for item in data['organic'][:5]:  # Top 5 results
+                            results.append({
+                                'title': item.get('title', ''),
+                                'link': item.get('link', ''),
+                                'snippet': item.get('snippet', '')
+                            })
+
+                    return {
+                        'results': results,
+                        'query': query,
+                        'total_results': len(results)
+                    }
+
+                except Exception as e:
+                    logger.error(f"❌ Serper API call failed: {e}")
+                    return {
+                        'results': [],
+                        'query': query,
+                        'error': str(e)
+                    }
 
 # Load environment variables
 load_dotenv()
