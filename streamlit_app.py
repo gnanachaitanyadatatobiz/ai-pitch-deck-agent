@@ -39,13 +39,34 @@ except ImportError:
 CREWAI_AVAILABLE = False
 CREWAI_ERROR = None
 
-# Attempt 1: Direct import after SQLite setup
+# Attempt 1: Try different SerperDevTool import paths
 if sqlite_success:
     try:
         from crewai import Agent, Task, Crew, Process, LLM
-        from crewai_tools import SerperDevTool
-        CREWAI_AVAILABLE = True
-        print("✅ CrewAI imported successfully after SQLite setup")
+
+        # Try multiple import paths for SerperDevTool
+        SerperDevTool = None
+        try:
+            from crewai_tools import SerperDevTool
+            print("✅ SerperDevTool imported from crewai_tools")
+        except ImportError:
+            try:
+                from crewai.tools import SerperDevTool
+                print("✅ SerperDevTool imported from crewai.tools")
+            except ImportError:
+                try:
+                    from crewai.tools.serper_dev_tool import SerperDevTool
+                    print("✅ SerperDevTool imported from crewai.tools.serper_dev_tool")
+                except ImportError:
+                    print("❌ SerperDevTool not found in any location")
+                    SerperDevTool = None
+
+        if SerperDevTool is not None:
+            CREWAI_AVAILABLE = True
+            print("✅ CrewAI imported successfully after SQLite setup")
+        else:
+            raise ImportError("SerperDevTool not available")
+
     except Exception as e:
         CREWAI_ERROR = str(e)
         print(f"❌ CrewAI import failed (Attempt 1): {e}")
@@ -58,7 +79,17 @@ if not CREWAI_AVAILABLE:
         os.environ["ALLOW_RESET"] = "TRUE"
 
         from crewai import Agent, Task, Crew, Process, LLM
-        from crewai_tools import SerperDevTool
+
+        # Try multiple import paths for SerperDevTool
+        SerperDevTool = None
+        try:
+            from crewai_tools import SerperDevTool
+        except ImportError:
+            try:
+                from crewai.tools import SerperDevTool
+            except ImportError:
+                from crewai.tools.serper_dev_tool import SerperDevTool
+
         CREWAI_AVAILABLE = True
         print("✅ CrewAI imported successfully (Attempt 2)")
     except Exception as e:
@@ -73,12 +104,63 @@ if not CREWAI_AVAILABLE:
         print(f"✅ ChromaDB imported successfully: {chromadb.__version__}")
 
         from crewai import Agent, Task, Crew, Process, LLM
-        from crewai_tools import SerperDevTool
+
+        # Try multiple import paths for SerperDevTool
+        SerperDevTool = None
+        try:
+            from crewai_tools import SerperDevTool
+        except ImportError:
+            try:
+                from crewai.tools import SerperDevTool
+            except ImportError:
+                from crewai.tools.serper_dev_tool import SerperDevTool
+
         CREWAI_AVAILABLE = True
         print("✅ CrewAI imported successfully (Attempt 3)")
     except Exception as e:
         CREWAI_ERROR = str(e)
         print(f"❌ CrewAI import failed (Attempt 3): {e}")
+
+# Create a simple SerperDevTool fallback if not available
+if CREWAI_AVAILABLE and 'SerperDevTool' not in globals():
+    print("⚠️ SerperDevTool not available, creating fallback")
+
+    class SerperDevTool:
+        """Fallback SerperDevTool implementation using direct API calls."""
+
+        def __init__(self):
+            self.api_key = os.getenv('SERPER_API_KEY')
+
+        def run(self, query):
+            """Run search using Serper API directly."""
+            if not self.api_key:
+                return "Error: SERPER_API_KEY not configured"
+
+            try:
+                import requests
+                url = "https://google.serper.dev/search"
+                headers = {
+                    'X-API-KEY': self.api_key,
+                    'Content-Type': 'application/json'
+                }
+                payload = {'q': query, 'num': 5}
+
+                response = requests.post(url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    data = response.json()
+
+                    # Format results similar to SerperDevTool
+                    results = []
+                    if 'organic' in data:
+                        for result in data['organic'][:5]:
+                            results.append(f"**{result.get('title', '')}**\n{result.get('snippet', '')}\nSource: {result.get('link', '')}\n")
+
+                    return "\n".join(results) if results else "No results found"
+                else:
+                    return f"Search failed with status {response.status_code}"
+
+            except Exception as e:
+                return f"Search error: {e}"
 
 # Fallback libraries
 if not CREWAI_AVAILABLE:
@@ -362,10 +444,19 @@ def run_research_agent_simple(startup_data, research_prompt=None):
             return "Error: SERPER_API_KEY not configured. Please add your Serper API key to the secrets.", [], {"error": "Missing SERPER_API_KEY"}
 
         # Get LLM configuration
-        llm = get_llm()
-        if not llm:
-            logger.error("❌ Failed to initialize LLM for research agent")
-            return "Error: LLM initialization failed", [], {"error": "LLM initialization failed"}
+        try:
+            llm = get_llm()
+            if not llm:
+                logger.error("❌ Failed to initialize LLM for research agent")
+                return "Error: LLM initialization failed", [], {"error": "LLM initialization failed"}
+        except NameError:
+            # get_llm function not available, create LLM directly
+            try:
+                from crewai import LLM
+                llm = LLM(model="gpt-3.5-turbo", api_key=os.getenv('OPENAI_API_KEY'))
+            except Exception as e:
+                logger.error(f"❌ Failed to create LLM directly: {e}")
+                return f"Error: LLM creation failed: {e}", [], {"error": f"LLM creation failed: {e}"}
 
         # Initialize tools with enhanced configuration
         try:
