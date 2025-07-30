@@ -16,22 +16,6 @@ os.environ["ANONYMIZED_TELEMETRY"] = "false"
 os.environ["CHROMA_SERVER_NOFILE"] = "1"
 os.environ["ALLOW_RESET"] = "TRUE"
 
-# Monkey patch to prevent ChromaDB import issues
-import sys
-import types
-
-def mock_chromadb():
-    """Create a mock chromadb module to prevent import errors."""
-    mock_module = types.ModuleType('chromadb')
-    mock_module.Documents = list
-    mock_module.EmbeddingFunction = object
-    mock_module.Embeddings = list
-    return mock_module
-
-# Pre-emptively add mock chromadb to sys.modules
-if 'chromadb' not in sys.modules:
-    sys.modules['chromadb'] = mock_chromadb()
-
 # Import CrewAI with enhanced error handling
 try:
     from crewai import Agent, Task, Crew, Process, LLM
