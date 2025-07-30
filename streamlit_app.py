@@ -670,6 +670,15 @@ def display_results():
                 if research_output:
                     st.markdown("#### Web Research Results (SerperDevTool)")
 
+                    # Debug information (can be removed later)
+                    with st.expander("🔍 Debug Info", expanded=False):
+                        st.write(f"Research sources count: {len(research_sources) if research_sources else 0}")
+                        st.write(f"Research output length: {len(research_output) if research_output else 0}")
+                        if research_sources:
+                            st.json(research_sources[:2])  # Show first 2 sources
+                        else:
+                            st.write("No structured sources found, using text extraction...")
+
                     # Show structured sources if available
                     if research_sources:
                         st.markdown("**📚 Sources Found:**")
@@ -692,63 +701,41 @@ def display_results():
                         # Enhanced fallback: Try to extract and display links with better formatting
                         import re
 
-                        # Display the research content with enhanced link extraction
-                        lines = research_output.split('\n')
-                        processed_lines = []
+                        # First, let's try to extract URLs using our helper function
+                        extracted_sources = extract_urls_from_text(research_output)
 
-                        # Improved URL pattern to catch more URLs
-                        url_pattern = r'(https?://[^\s\)]+)'
+                        if extracted_sources:
+                            # Display extracted sources in card format
+                            st.markdown("**📚 Sources Found in Research:**")
+                            for i, src in enumerate(extracted_sources, 1):
+                                # Extract domain for display
+                                try:
+                                    domain = src['url'].split('/')[2].replace('www.', '')
+                                except:
+                                    domain = src['url']
 
-                        for line in lines:
-                            # Check if line contains URLs
-                            urls_in_line = re.findall(url_pattern, line)
+                                # Create a nice card-like display for each source
+                                st.markdown(f"""
+                                <div style="border-left: 3px solid #FF6B6B; padding-left: 15px; margin: 10px 0; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">
+                                    <strong>{i}. <a href="{src['url']}" target="_blank" style="color: #1f77b4; text-decoration: none;">{src['title']}</a></strong><br>
+                                    <span style="color: #666; font-size: 0.85em;">🔗 {domain}</span><br>
+                                    <span style="color: #333; font-size: 0.9em; line-height: 1.4;">{src['snippet']}</span>
+                                </div>
+                                """, unsafe_allow_html=True)
 
-                            if urls_in_line:
-                                # Process each URL in the line
-                                processed_line = line
-                                for url in urls_in_line:
-                                    # Clean up URL (remove trailing punctuation)
-                                    clean_url = url.rstrip('.,;:!?)')
+                            # Also display the processed research content with inline links
+                            st.markdown("**📄 Research Content:**")
 
-                                    # Try to extract title from the line
-                                    # Look for patterns like "Title: URL" or "- Title URL" or "Title (URL)"
-                                    title_patterns = [
-                                        r'[-*•]\s*([^:\n]+?)[\s:]*' + re.escape(url),  # - Title: URL
-                                        r'([^(\n]+?)\s*\(' + re.escape(url),          # Title (URL)
-                                        r'([^:\n]+?):\s*' + re.escape(url),           # Title: URL
-                                        r'([^-\n]+?)\s*-\s*' + re.escape(url),        # Title - URL
-                                    ]
+                            # Process the content to replace URLs with markdown links
+                            processed_content = research_output
+                            for src in extracted_sources:
+                                # Replace URL with markdown link in the content
+                                processed_content = processed_content.replace(src['url'], f"[{src['title']}]({src['url']})")
 
-                                    title = None
-                                    for pattern in title_patterns:
-                                        title_match = re.search(pattern, line, re.IGNORECASE)
-                                        if title_match:
-                                            title = title_match.group(1).strip()
-                                            # Clean up title
-                                            title = re.sub(r'^[-*•\s]+', '', title)  # Remove leading bullets
-                                            title = re.sub(r'[:\-]+$', '', title)    # Remove trailing colons/dashes
-                                            if len(title) > 5:  # Only use if title is meaningful
-                                                break
-
-                                    # If no good title found, try to extract domain
-                                    if not title or len(title) < 5:
-                                        domain_match = re.search(r'https?://(?:www\.)?([^/]+)', clean_url)
-                                        title = domain_match.group(1) if domain_match else "Link"
-
-                                    # Replace URL in line with markdown link
-                                    processed_line = processed_line.replace(url, f"[{title}]({clean_url})")
-
-                                processed_lines.append(processed_line)
-                            else:
-                                processed_lines.append(line)
-
-                        # Display the processed content
-                        processed_content = '\n'.join(processed_lines)
-
-                        # If we found URLs, display as markdown, otherwise as code
-                        if re.search(url_pattern, research_output):
                             st.markdown(processed_content)
                         else:
+                            # Fallback: Display as code if no URLs found
+                            st.markdown("**📄 Research Content:**")
                             st.code(research_output[:2000] + ('... (truncated)' if len(research_output) > 2000 else ''))
 
             # Pitch Deck Content Section
