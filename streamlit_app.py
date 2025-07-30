@@ -56,8 +56,61 @@ if sqlite_success:
                 from langchain_community.tools import SerperDevTool
                 print("✅ SerperDevTool imported from langchain_community.tools")
             except ImportError:
-                print("❌ SerperDevTool not found - will use fallback implementation")
-                SerperDevTool = None
+                print("❌ SerperDevTool not found - creating fallback implementation")
+
+                # Create fallback SerperDevTool class
+                class SerperDevTool:
+                    """Fallback SerperDevTool implementation using direct Serper API calls."""
+
+                    def __init__(self):
+                        self.api_key = os.getenv('SERPER_API_KEY')
+                        if not self.api_key:
+                            raise ValueError("SERPER_API_KEY not found in environment variables")
+
+                    def run(self, query):
+                        """Run a search query using Serper API."""
+                        try:
+                            import requests
+
+                            url = "https://google.serper.dev/search"
+                            headers = {
+                                'X-API-KEY': self.api_key,
+                                'Content-Type': 'application/json'
+                            }
+                            payload = {
+                                'q': query,
+                                'num': 10
+                            }
+
+                            response = requests.post(url, headers=headers, json=payload)
+                            response.raise_for_status()
+
+                            data = response.json()
+
+                            # Format results with URLs
+                            results = []
+                            if 'organic' in data:
+                                for item in data['organic'][:5]:  # Top 5 results
+                                    result_item = {
+                                        'title': item.get('title', ''),
+                                        'link': item.get('link', ''),
+                                        'snippet': item.get('snippet', ''),
+                                        'url': item.get('link', '')  # Ensure URL is included
+                                    }
+                                    results.append(result_item)
+
+                            # Format response similar to original SerperDevTool
+                            formatted_response = f"Search Results for: {query}\n\n"
+                            for i, result in enumerate(results, 1):
+                                formatted_response += f"{i}. {result['title']}\n"
+                                formatted_response += f"   URL: {result['link']}\n"
+                                formatted_response += f"   {result['snippet']}\n\n"
+
+                            return formatted_response
+
+                        except Exception as e:
+                            logger.error(f"❌ Serper API call failed: {e}")
+                            return f"Error: Search failed - {str(e)}"
 
         if SerperDevTool is not None:
             CREWAI_AVAILABLE = True
