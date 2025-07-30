@@ -282,6 +282,26 @@ def configure_llm():
             raise ValueError("OPENAI_API_KEY not found in environment variables")
 
         logger.info("Initializing OpenAI LLM...")
+
+        # Import LLM class - try multiple import paths
+        LLM = None
+        try:
+            from crewai import LLM
+        except ImportError:
+            try:
+                from crewai.llm import LLM
+            except ImportError:
+                # Fallback: create a simple LLM-like object
+                class LLM:
+                    def __init__(self, model, api_key, temperature=0.7, max_tokens=2000):
+                        self.model = model
+                        self.api_key = api_key
+                        self.temperature = temperature
+                        self.max_tokens = max_tokens
+
+        if LLM is None:
+            raise ImportError("Could not import LLM class from CrewAI")
+
         return LLM(
             model="gpt-4o-mini",
             api_key=OPENAI_API_KEY,
