@@ -11,7 +11,7 @@ tqdm
 langchain-openai
 langchain-core
 langchain-community
-pinecone-client
+pinecone
 pysqlite3-binary
 crewai
 crewai-tools
