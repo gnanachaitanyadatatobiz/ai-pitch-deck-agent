@@ -41,6 +41,8 @@ CREWAI_ERROR = None
 
 # Server-side loop prevention using environment variable
 import os
+
+# Check if we're on Streamlit Cloud and handle session state
 if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
     # Running on Streamlit Cloud - use more aggressive loop prevention
     if 'server_init_done' not in st.session_state:
@@ -48,14 +50,22 @@ if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
 
     if st.session_state.server_init_done:
         print("� Server initialization already completed - skipping")
-        # Skip all initialization and jump to main app
+        # Restore global variables from session state
         CREWAI_AVAILABLE = st.session_state.get('crewai_available', False)
         CUSTOM_MODULES_AVAILABLE = st.session_state.get('custom_modules_available', False)
+        print(f"🔄 Restored state: CREWAI_AVAILABLE={CREWAI_AVAILABLE}, CUSTOM_MODULES_AVAILABLE={CUSTOM_MODULES_AVAILABLE}")
+
+        # Skip to main app by setting a flag
+        SKIP_INITIALIZATION = True
     else:
         print("🚀 First-time server initialization starting...")
+        SKIP_INITIALIZATION = False
+else:
+    # Local development - normal behavior
+    SKIP_INITIALIZATION = False
 
 # Only run initialization if not already done
-if not st.session_state.get('server_init_done', False):
+if not SKIP_INITIALIZATION:
     # Attempt 1: Try different SerperDevTool import paths
     if sqlite_success:
         try:
