@@ -13,3 +13,4 @@ langchain
 langchain-openai
 crewai
 crewai-tools
+python-dotenv
