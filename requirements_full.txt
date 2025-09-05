@@ -1,0 +1,15 @@
+streamlit
+python-dotenv
+openai
+tiktoken
+PyPDF2
+python-pptx
+tqdm
+pdfplumber
+numpy
+pandas
+pinecone
+langchain
+langchain-openai
+crewai
+crewai-tools
